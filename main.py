@@ -1,63 +1,42 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
+from sklearn.metrics import jaccard_score
 from ucimlrepo import fetch_ucirepo
 
 
-# fetch dataset
+# Coleta de dados do ucimlrepo
 breast_cancer_winsconsin_diagnostic = fetch_ucirepo(id=17)
-
-
 X = breast_cancer_winsconsin_diagnostic.data.features.loc[
     :, "radius1":"texture1"
 ].values
+y = breast_cancer_winsconsin_diagnostic.data.targets.values.flatten()
 
-# Visualização inicial
-plt.scatter(X[:, 0], X[:, 1], s=50, c="gray")
-plt.xlabel("Feature 1")
-plt.ylabel("Feature 2")
-plt.title("Dados Brutos")
-plt.show()
+# Convertendo a coluna diagnosticos para binário
+unique_labels = np.unique(y)
+mapping = {unique_labels[0]: 0, unique_labels[1]: 1}
+y_binary = np.array([mapping[label] for label in y])
 
-k = 3  # Número de clusters
-# Executa o algoritmo K-Means.
-n_samples = X.shape[0]
-random_indices = np.random.choice(n_samples, k, replace=False)
-centroids = X[random_indices]
-max_iters = 100
-for i in range(max_iters):
-    distances = np.linalg.norm(X[:, np.newaxis] - centroids, axis=2)
-    cluster_labels = np.argmin(distances, axis=1)
-    new_centroids = np.array([X[cluster_labels == i].mean(axis=0) for i in range(k)])
+k = 2 # Assumindo 2 categorias de diagnśticos e clusters 
 
-    # Verifica convergência
-    if np.all(np.abs(new_centroids - centroids) < 1e-4):
-        break
-    centroids = new_centroids
-
-# Visualização dos Clusters
-for i in range(k):
-    plt.scatter(
-        X[cluster_labels == i, 0], X[cluster_labels == i, 1], label=f"Cluster {i + 1}"
-    )
-plt.scatter(
-    centroids[:, 0], centroids[:, 1], s=200, c="red", marker="X", label="Centroides"
-)
-plt.xlabel("Feature 1")
-plt.ylabel("Feature 2")
-plt.title("Clusters Formados")
-plt.legend()
-plt.show()
-
-kmeans_sklearn = KMeans(n_clusters=k, random_state=42)
+kmeans_sklearn = KMeans(n_clusters=k, random_state=42, n_init=10)
 kmeans_sklearn.fit(X)
+cluster_labels = kmeans_sklearn.labels_
 
-# Visualização dos Clusters com scikit-learn
-# plt.scatter(X[:, 0], X[:, 1], c=kmeans_sklearn.labels_, cmap='viridis', s=50)
-# plt.scatter(kmeans_sklearn.cluster_centers_[:, 0], kmeans_sklearn.cluster_centers_[:, 1],
-#            s=200, c='red', marker='X', label='Centroides')
-# plt.xlabel('Feature 1')
-# plt.ylabel('Feature 2')
-# plt.title('Clusters com scikit-learn')
-# plt.legend()
-# plt.show()
+import itertools
+
+unique_clusters = np.unique(cluster_labels)
+num_clusters = len(unique_clusters)
+
+if num_clusters == 2:
+    permutations = list(itertools.permutations([0, 1]))
+    max_jaccard = 0
+    for p in permutations:
+        mapped_labels = np.array([p[c] for c in cluster_labels])
+        jaccard = jaccard_score(y_binary, mapped_labels)
+        if jaccard > max_jaccard:
+            max_jaccard = jaccard
+    print(f"Jaccard Score: {max_jaccard:.4f}")
+else:
+    print("O número de clusters é maior que 2")
+    print("COnsidere usar apenas duas n_clusters")
